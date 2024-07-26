@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -74,14 +76,19 @@ namespace Microsoft.Azure.Functions.Tests.E2ETests
         }
 
         [Theory]
-        [InlineData("PocoFromQuery", "?name=John", HttpStatusCode.OK, "Greetings John")]
-        public async Task HttpTriggerTests_PocoFromQuery(string functionName, string queryString, HttpStatusCode expectedStatusCode, string expectedBody)
+        [InlineData("PocoFromQuery", "?someString=MyString&someInteger=42&SomeNullableInteger=24", "MyString", 42, 24)]
+        [InlineData("PocoFromQuery", "?someString=MyString&someInteger=42", "MyString", 42, null)]
+        public async Task HttpTriggerTests_PocoFromQuery(string functionName, string queryString, string expectedString, int expectedInt, int? expectedNullableInt)
         {
-            HttpResponseMessage response = await HttpHelpers.InvokeHttpTrigger(functionName, queryString);
-            string responseBody = await response.Content.ReadAsStringAsync();
+            var response = await HttpHelpers.InvokeHttpTrigger(functionName, queryString);
+            var responseBody = await response.Content.ReadFromJsonAsync<JsonElement>();
 
-            Assert.Equal(expectedStatusCode, response.StatusCode);
-            Assert.Equal(expectedBody, responseBody);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(expectedString, responseBody.GetProperty("SomeString").GetString());
+            Assert.Equal(expectedInt, responseBody.GetProperty("SomeInteger").GetInt32());
+
+            if (expectedNullableInt.HasValue)
+                Assert.Equal(expectedNullableInt, responseBody.GetProperty("SomeNullableInteger").GetInt32());
         }
 
         [Fact]

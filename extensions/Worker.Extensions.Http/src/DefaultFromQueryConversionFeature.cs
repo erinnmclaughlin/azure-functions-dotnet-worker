@@ -2,12 +2,16 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
-using System.Threading;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Azure.Functions.Worker.Extensions.Http.Converters;
 using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Azure.Functions.Worker.Extensions.Http
 {
@@ -21,45 +25,64 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
 
             if (requestData.IsCompletedSuccessfully)
             {
-                return ConvertRequestAsync(requestData.Result, targetType, context.CancellationToken);
+                return ConvertRequestAsync(context, requestData.Result, targetType);
             }
 
-            return ConvertAsync(requestData, targetType, context.CancellationToken);
+            return ConvertAsync(context, requestData, targetType);
         }
 
-        private async ValueTask<object?> ConvertAsync(ValueTask<HttpRequestData?> requestDataResult, Type targetType, CancellationToken cancellationToken)
+        private async ValueTask<object?> ConvertAsync(FunctionContext context, ValueTask<HttpRequestData?> requestDataResult, Type targetType)
         {
             var requestData = await requestDataResult;
-            return await ConvertRequestAsync(requestData, targetType, cancellationToken);
+            return await ConvertRequestAsync(context, requestData, targetType);
         }
 
-        private ValueTask<object?> ConvertRequestAsync(HttpRequestData? requestData, Type targetType, CancellationToken cancellationToken)
+        private ValueTask<object?> ConvertRequestAsync(FunctionContext context, HttpRequestData? requestData, Type targetType)
         {
             if (requestData is null)
             {
                 throw new InvalidOperationException($"The '{nameof(DefaultFromQueryConversionFeature)} expects an '{nameof(HttpRequestData)}' instance in the current context.");
             }
 
-            return ConvertQueryAsync(requestData, targetType, cancellationToken);
+            return ConvertQueryAsync(context, requestData, targetType);
         }
 
-        private static ValueTask<object?> ConvertQueryAsync(HttpRequestData requestData, Type targetType, CancellationToken cancellationToken)
+        private static ValueTask<object?> ConvertQueryAsync(FunctionContext context, HttpRequestData requestData, Type targetType)
         {
-            var query = requestData.Query;
+            var serializer = requestData.FunctionContext.InstanceServices.GetService<IOptions<WorkerOptions>>()?.Value?.Serializer
+                ?? throw new InvalidOperationException("A serializer is not configured for the worker.");
 
-            // TODO: Implement a better way of doing this
-            var obj = Activator.CreateInstance(targetType);
+            var queryParamsAsDictionary = GetObjectDictionary(targetType, requestData.Query);
+            var stream = serializer.Serialize(queryParamsAsDictionary).ToStream();
+            var obj = serializer.Deserialize(stream, targetType, context.CancellationToken);
+            return new ValueTask<object?>(obj);
+        }
 
-            foreach (var property in obj.GetType().GetProperties())
+        private static Dictionary<string, object?> GetObjectDictionary(Type targetType, NameValueCollection collection)
+        {
+            const BindingFlags propertyFlags = BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance;
+
+            var dict = new Dictionary<string, object?>();
+
+            foreach (var key in collection.AllKeys)
             {
-                var valueAsString = query[property.Name];
-                var typeConverter = TypeDescriptor.GetConverter(property.PropertyType);
-                var value = typeConverter.ConvertFromString(null, CultureInfo.InvariantCulture, valueAsString);
+                var value = collection[key];
 
-                property.SetValue(obj, value, null);
+                if (string.IsNullOrEmpty(value))
+                {
+                    continue;
+                }
+
+                if (targetType.GetProperty(key, propertyFlags) is { } property)
+                {
+                    var typeConverter = TypeDescriptor.GetConverter(property.PropertyType);
+                    var convertedValue = typeConverter.ConvertFromString(null, CultureInfo.InvariantCulture, value);
+
+                    dict.Add(key, convertedValue);
+                }
             }
 
-            return new ValueTask<object?>(obj);
+            return dict;
         }
     }
 }

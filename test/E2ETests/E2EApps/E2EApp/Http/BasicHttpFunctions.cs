@@ -124,17 +124,24 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             return response;
         }
 
+        public class PocoFromQueryModel
+        {
+            public string SomeString { get; set; }
+            public int SomeInteger { get; set; }
+            public int? SomeNullableInteger { get; set; }
+        }
+
         [Function(nameof(PocoFromQuery))]
-        public static HttpResponseData PocoFromQuery(
+        public static async Task<HttpResponseData> PocoFromQuery(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
-            [FromQuery] CallerName caller,
+            [FromQuery] PocoFromQueryModel model,
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(PocoFromQuery));
             logger.LogInformation(LogMessage);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
-            response.WriteString($"Greetings {caller.Name}");
+            await response.WriteAsJsonAsync(model);
             return response;
         }
 

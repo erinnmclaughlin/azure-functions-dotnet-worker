@@ -73,6 +73,17 @@ namespace Microsoft.Azure.Functions.Tests.E2ETests
             Assert.Equal(expectedBody, responseBody);
         }
 
+        [Theory]
+        [InlineData("PocoFromQuery", "?name=John", HttpStatusCode.OK, "Greetings John")]
+        public async Task HttpTriggerTests_PocoFromQuery(string functionName, string queryString, HttpStatusCode expectedStatusCode, string expectedBody)
+        {
+            HttpResponseMessage response = await HttpHelpers.InvokeHttpTrigger(functionName, queryString);
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(expectedStatusCode, response.StatusCode);
+            Assert.Equal(expectedBody, responseBody);
+        }
+
         [Fact]
         public async Task HttpTriggerTests_PocoWithoutBindingSource()
         {

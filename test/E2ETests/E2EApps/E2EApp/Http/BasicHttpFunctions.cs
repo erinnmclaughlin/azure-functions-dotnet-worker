@@ -11,13 +11,15 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
 {
     public static class BasicHttpFunctions
     {
+        private const string LogMessage = ".NET Worker HTTP trigger function processed a request";
+
         [Function("HelloPascal")]
         public static HttpResponseData Hello(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(Hello));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.WriteString("Hello!");
@@ -30,7 +32,7 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(HELLO));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.WriteString("HELLO!");
@@ -43,7 +45,7 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(HelloFromQuery));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
 
             var queryName = req.Query["name"];
 
@@ -65,7 +67,7 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(HelloFromJsonBody));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
             var body = req.ReadAsString();
 
             if (!string.IsNullOrEmpty(body))
@@ -92,7 +94,7 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(HelloUsingPoco));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
 
             return new MyResponse { Name = "Test" };
         }
@@ -103,7 +105,7 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(HelloWithNoResponse));
-            logger.LogInformation($".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
 
             return Task.CompletedTask;
         }
@@ -115,7 +117,21 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(PocoFromBody));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            response.WriteString($"Greetings {caller.Name}");
+            return response;
+        }
+
+        [Function(nameof(PocoFromQuery))]
+        public static HttpResponseData PocoFromQuery(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
+            [FromQuery] CallerName caller,
+            FunctionContext context)
+        {
+            var logger = context.GetLogger(nameof(PocoFromQuery));
+            logger.LogInformation(LogMessage);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.WriteString($"Greetings {caller.Name}");
@@ -130,7 +146,7 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(PocoBeforeRouteParameters));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
             return Task.CompletedTask;
         }
 
@@ -143,7 +159,7 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             FunctionContext context)
         {
             var logger = context.GetLogger(nameof(PocoAfterRouteParameters));
-            logger.LogInformation(".NET Worker HTTP trigger function processed a request");
+            logger.LogInformation(LogMessage);
 
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.WriteString($"{region} {category} {caller.Name}");

@@ -1,6 +1,7 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
+using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -61,6 +62,27 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             }
         }
 
+        [Function(nameof(HelloFromQueryUsingAttribute))]
+        public static HttpResponseData HelloFromQueryUsingAttribute(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
+            FunctionContext context,
+            [FromQuery] string name)
+        {
+            var logger = context.GetLogger(nameof(HelloFromQueryUsingAttribute));
+            logger.LogInformation(LogMessage);
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                response.WriteString("Hello " + name);
+                return response;
+            }
+            else
+            {
+                return req.CreateResponse(HttpStatusCode.BadRequest);
+            }
+        }
+
         [Function(nameof(HelloFromJsonBody))]
         public static HttpResponseData HelloFromJsonBody(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
@@ -72,9 +94,9 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
 
             if (!string.IsNullOrEmpty(body))
             {
-                var serliazedBody = (CallerName)JsonSerializer.Deserialize(body, typeof(CallerName));
+                var serializedBody = (CallerName)JsonSerializer.Deserialize(body, typeof(CallerName));
                 var response = req.CreateResponse(HttpStatusCode.OK);
-                response.WriteString("Hello " + serliazedBody.Name);
+                response.WriteString("Hello " + serializedBody.Name);
                 return response;
             }
             else
@@ -83,7 +105,27 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             }
         }
 
+        [Function(nameof(SumFromQuery))]
+        public static HttpResponseData SumFromQuery(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
+            FunctionContext context,
+            [FromQuery] int number1,
+            [FromQuery] int number2)
+        {
+            var logger = context.GetLogger(nameof(SumFromQuery));
+            logger.LogInformation(LogMessage);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            response.WriteString($"{number1} + {number2} = {number1 + number2}");
+            return response;
+        }
+
         public class CallerName
+        {
+            public string Name { get; set; }
+        }
+
+        public class MyResponse
         {
             public string Name { get; set; }
         }
@@ -124,27 +166,6 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             return response;
         }
 
-        public class PocoFromQueryModel
-        {
-            public string SomeString { get; set; }
-            public int SomeInteger { get; set; }
-            public int? SomeNullableInteger { get; set; }
-        }
-
-        [Function(nameof(PocoFromQuery))]
-        public static async Task<HttpResponseData> PocoFromQuery(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
-            [FromQuery] PocoFromQueryModel model,
-            FunctionContext context)
-        {
-            var logger = context.GetLogger(nameof(PocoFromQuery));
-            logger.LogInformation(LogMessage);
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            await response.WriteAsJsonAsync(model);
-            return response;
-        }
-
         [Function(nameof(PocoBeforeRouteParameters))]
         public static Task PocoBeforeRouteParameters(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "{region}/{category}/" + nameof(PocoBeforeRouteParameters))] [FromBody] CallerName caller,
@@ -173,10 +194,26 @@ namespace Microsoft.Azure.Functions.Worker.E2EApp
             return response;
         }
 
-        public class MyResponse
+        public class PocoFromQueryModel
         {
-            public string Name { get; set; }
+            public string SomeString { get; set; }
+            public int SomeInteger { get; set; }
+            public int? SomeNullableInteger { get; set; }
+            public List<int> Numbers { get; set; } = [];
         }
 
+        [Function(nameof(PocoFromQuery))]
+        public static async Task<HttpResponseData> PocoFromQuery(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequestData req,
+            [FromQuery] PocoFromQueryModel model,
+            FunctionContext context)
+        {
+            var logger = context.GetLogger(nameof(PocoFromQuery));
+            logger.LogInformation(LogMessage);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(model);
+            return response;
+        }
     }
 }

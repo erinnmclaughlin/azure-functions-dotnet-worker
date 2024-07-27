@@ -1,6 +1,7 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
+using System;
 using System.Threading.Tasks;
 using Microsoft.Azure.Functions.Worker.Converters;
 
@@ -13,7 +14,7 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http.Converters
             var queryConversionFeature = context.FunctionContext.Features.Get<IFromQueryConversionFeature>()
                 ?? DefaultFromQueryConversionFeature.Instance;
 
-            var result = queryConversionFeature.ConvertAsync(context.FunctionContext, context.TargetType);
+            var result = queryConversionFeature.ConvertAsync(context.FunctionContext, context.TargetType, context.Source);
 
             if (result.IsCompletedSuccessfully)
             {

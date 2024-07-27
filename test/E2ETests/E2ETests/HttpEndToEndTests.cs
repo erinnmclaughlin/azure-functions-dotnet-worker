@@ -76,20 +76,57 @@ namespace Microsoft.Azure.Functions.Tests.E2ETests
         }
 
         [Theory]
-        [InlineData("PocoFromQuery", "?someString=MyString&someInteger=42&SomeNullableInteger=24", "MyString", 42, 24)]
-        [InlineData("PocoFromQuery", "?someString=MyString&someInteger=42", "MyString", 42, null)]
-        public async Task HttpTriggerTests_PocoFromQuery(string functionName, string queryString, string expectedString, int expectedInt, int? expectedNullableInt)
+        [InlineData("?someString=MyString&someInteger=42&SomeNullableInteger=24", "MyString", 42, 24)]
+        [InlineData("?someString=MyString&someInteger=42", "MyString", 42, null)]
+        public async Task HttpTriggerTests_PocoFromQuery(string queryString, string expectedStringValue, int expectedIntValue, int? expectedNullableIntValue)
         {
-            var response = await HttpHelpers.InvokeHttpTrigger(functionName, queryString);
+            var response = await HttpHelpers.InvokeHttpTrigger("PocoFromQuery", queryString);
             var responseBody = await response.Content.ReadFromJsonAsync<JsonElement>();
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal(expectedString, responseBody.GetProperty("SomeString").GetString());
-            Assert.Equal(expectedInt, responseBody.GetProperty("SomeInteger").GetInt32());
+            Assert.Equal(expectedStringValue, responseBody.GetProperty("SomeString").GetString());
+            Assert.Equal(expectedIntValue, responseBody.GetProperty("SomeInteger").GetInt32());
 
-            if (expectedNullableInt.HasValue)
-                Assert.Equal(expectedNullableInt, responseBody.GetProperty("SomeNullableInteger").GetInt32());
+            if (expectedNullableIntValue.HasValue)
+                Assert.Equal(expectedNullableIntValue, responseBody.GetProperty("SomeNullableInteger").GetInt32());
         }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("?numbers=4", 4)]
+        [InlineData("?numbers=4&numbers=2", 4, 2)]
+        public async Task HttpTriggerTests_PocoFromQuery_Collections(string queryString, params int[] expectedNumbers)
+        {
+            var response = await HttpHelpers.InvokeHttpTrigger("PocoFromQuery", queryString);
+            var responseBody = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(expectedNumbers, responseBody.GetProperty("Numbers").EnumerateArray().Select(e => e.GetInt32()).ToArray());
+        }
+
+        [Fact]
+        public async Task HttpTriggerTests_HelloFromQueryUsingAttribute()
+        {
+            var response = await HttpHelpers.InvokeHttpTrigger("HelloFromQueryUsingAttribute", "?name=John");
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("Hello John", responseBody);
+        }
+
+        [Theory]
+        [InlineData("", "0 + 0 = 0")]
+        [InlineData("?number1=12", "12 + 0 = 12")]
+        [InlineData("?number1=12&number2=30", "12 + 30 = 42")]
+        public async Task HttpTriggerTests_SumFromQuery(string queryString, string expectedBody)
+        {
+            var response = await HttpHelpers.InvokeHttpTrigger("SumFromQuery", queryString);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(expectedBody, responseBody);
+        }
+
 
         [Fact]
         public async Task HttpTriggerTests_PocoWithoutBindingSource()

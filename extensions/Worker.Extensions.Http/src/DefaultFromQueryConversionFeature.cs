@@ -27,7 +27,7 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
 
             if (requestData.IsCompletedSuccessfully)
             {
-                return Convert(context, requestData.Result, targetType, source);
+                return new ValueTask<object?>(Convert(context, requestData.Result, targetType, source));
             }
 
             return ConvertAsync(context, requestData, targetType, source);
@@ -39,21 +39,21 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
             return Convert(context, requestData, targetType, source);
         }
 
-        private ValueTask<object?> Convert(FunctionContext context, HttpRequestData? requestData, Type targetType, object? source)
+        private object? Convert(FunctionContext context, HttpRequestData? requestData, Type targetType, object? source)
         {
             if (requestData is null)
             {
                 throw new InvalidOperationException($"The '{nameof(DefaultFromQueryConversionFeature)} expects an '{nameof(HttpRequestData)}' instance in the current context.");
             }
 
-            return new ValueTask<object?>(ConvertQuery(context, requestData, targetType, source));
+            return ConvertQuery(context, requestData, targetType, source);
         }
 
         private static object? ConvertQuery(FunctionContext context, HttpRequestData requestData, Type targetType, object? source)
         {
             if (IsSimpleType(targetType))
             {
-                return source is not null ? ParseSimpleType(targetType, source) : CreateDefaultInstanceOfType(targetType);
+                return source is not null ? ConvertSimpleType(targetType, source) : CreateDefaultInstanceOfType(targetType);
             }
 
             return DeserializeQuery(context, targetType, requestData.Query);
@@ -78,9 +78,7 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
 
             foreach (var propertyName in query.AllKeys)
             {
-                var value = query[propertyName];
-
-                // skip if the target type does not contain a property with a matching name:
+                // Skip if the target type does not contain a property with a matching name:
                 if (targetType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance) is not { } property)
                 {
                     continue;
@@ -91,7 +89,7 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
                 // Handle simple types:
                 if (IsSimpleType(propertyType))
                 {
-                    dict.Add(propertyName, ParseSimpleType(propertyType, value));
+                    dict.Add(propertyName, ConvertSimpleType(propertyType, query[propertyName]));
                     continue;
                 }
                 
@@ -100,12 +98,12 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
                 {
                     if (TryGetArrayType(propertyType, out var arrayType))
                     {
-                        var arrayValues = value.Split(',');
+                        var arrayValues = query.GetValues(propertyName);
 
                         // Handle collections of simple types:
                         if (IsSimpleType(arrayType))
                         {
-                            var parsedValues = arrayValues.Select(p => ParseSimpleType(arrayType, p)).ToArray();
+                            var parsedValues = arrayValues.Select(p => ConvertSimpleType(arrayType, p)).ToArray();
                             dict.Add(propertyName, parsedValues);
                         }
 
@@ -128,7 +126,7 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
             return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
         }
 
-        private static object? ParseSimpleType(Type targetType, object? value)
+        private static object? ConvertSimpleType(Type targetType, object? value)
         {
             if (value?.ToString() is not { Length: > 0 } stringValue)
             {

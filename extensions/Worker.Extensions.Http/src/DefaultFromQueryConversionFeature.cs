@@ -75,16 +75,15 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
         private static Dictionary<string, object?> GetObjectDictionary(Type targetType, NameValueCollection query)
         {
             var dict = new Dictionary<string, object?>();
+            const BindingFlags bindingFlags = BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance;
 
             foreach (var propertyName in query.AllKeys)
             {
                 // Skip if the target type does not contain a property with a matching name:
-                if (targetType.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance) is not { } property)
+                if (string.IsNullOrEmpty(propertyName) || targetType.GetProperty(propertyName, bindingFlags)?.PropertyType is not { } propertyType)
                 {
                     continue;
                 }
-
-                var propertyType = property.PropertyType;
 
                 // Handle simple types:
                 if (IsSimpleType(propertyType))
@@ -96,22 +95,20 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
                 // Handle collection types:
                 if (typeof(IEnumerable).IsAssignableFrom(propertyType))
                 {
-                    if (TryGetArrayType(propertyType, out var arrayType))
+                    var arrayType = GetArrayType(propertyType);
+                    var arrayValues = query.GetValues(propertyName);
+
+                    // Handle collections of simple types:
+                    if (IsSimpleType(arrayType))
                     {
-                        var arrayValues = query.GetValues(propertyName);
-
-                        // Handle collections of simple types:
-                        if (IsSimpleType(arrayType))
-                        {
-                            var parsedValues = arrayValues.Select(p => ConvertSimpleType(arrayType, p)).ToArray();
-                            dict.Add(propertyName, parsedValues);
-                        }
-
-                        // TODO: Handle collections of complex types
-                        // ..
-
-                        continue;
+                        var parsedValues = arrayValues.Select(p => ConvertSimpleType(arrayType, p)).ToArray();
+                        dict.Add(propertyName, parsedValues);
                     }
+
+                    // TODO: Handle collections of complex types
+                    // ..
+                    
+                    continue;
                 }
 
                 // TODO: Handle complex types
@@ -126,37 +123,33 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
             return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
         }
 
-        private static object? ConvertSimpleType(Type targetType, object? value)
+        private static object? ConvertSimpleType(Type targetType, object? valueToConvert)
         {
-            if (value?.ToString() is not { Length: > 0 } stringValue)
-            {
-                return CreateDefaultInstanceOfType(targetType);
-            }
+            var stringValue = valueToConvert?.ToString();
 
             if (targetType == typeof(string))
             {
                 return stringValue;
             }
 
+            if (string.IsNullOrEmpty(stringValue))
+            {
+                return CreateDefaultInstanceOfType(targetType);
+            }
+
             var typeConverter = TypeDescriptor.GetConverter(targetType);
-            return typeConverter.ConvertFromString(null, CultureInfo.InvariantCulture, stringValue);
+
+            if (typeConverter.IsValid(stringValue))
+            {
+                return typeConverter.ConvertFromString(null, CultureInfo.InvariantCulture, stringValue);
+            }
+
+            return CreateDefaultInstanceOfType(targetType);
         }
 
-        private static bool TryGetArrayType(Type propertyType, out Type arrayType)
+        private static Type GetArrayType(Type propertyType)
         {
-            arrayType = propertyType.GetElementType();
-
-            if (arrayType is null && propertyType.ContainsGenericParameters)
-            {
-                arrayType = propertyType.GetGenericArguments().FirstOrDefault();
-            }
-
-            if (arrayType is null && propertyType.IsGenericType)
-            {
-                arrayType = propertyType.GenericTypeArguments.FirstOrDefault();
-            }
-
-            return arrayType is not null;
+            return propertyType.GetElementType() ?? propertyType.GenericTypeArguments[0];
         }
 
         private static bool IsSimpleType(Type type)
@@ -166,7 +159,14 @@ namespace Microsoft.Azure.Functions.Worker.Extensions.Http
                 type = underlyingType;
             }
 
-            return type.IsPrimitive || type.IsEnum || type == typeof(string);
+            return type.IsPrimitive
+                || type.IsEnum
+                || type == typeof(string)
+                || type == typeof(decimal)
+                || type == typeof(DateTime)
+                || type == typeof(DateTimeOffset)
+                || type == typeof(TimeSpan)
+                || type == typeof(Guid);
         }
 
         private static bool IsNullableType(Type type)

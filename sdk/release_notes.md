@@ -4,9 +4,10 @@
 - My change description (#PR/#issue)
 -->
 
-### Microsoft.Azure.Functions.Worker.Sdk (meta package) <version>
+### Microsoft.Azure.Functions.Worker.Sdk 1.18.0
 
-- <entry>
+- Fix incorrect function version in build message (#2606)
+- Fix inner build failures when central package management is enabled (#2689)
 
 ### Microsoft.Azure.Functions.Worker.Sdk.Generators <version>
 
